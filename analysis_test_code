@@ -5,7 +5,7 @@
    "id": "fd395d2c",
    "metadata": {},
    "source": [
-    " # Gonna do some curve fitting"
+    "# This should automatically analyze a text file of the data from the gyroscope/accelerometer."
    ]
   },
   {
