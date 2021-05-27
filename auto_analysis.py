@@ -20,9 +20,11 @@ if path == 'def':
 
 # turn all the data into numpy arrays
 # there is likely a much faster way to do this but I don't care (yet)
-all_data = np.genfromtxt(path, delimiter = '\t')
+all_data = np.genfromtxt(path, delimiter = '\t', skip_footer = 1)
 
-count = all_data[:,0]
+# for some reason count = all_data[:,0] reads it as a list of nan's
+# so I'm just using arange to avoid that
+count = np.arange(0,1000, 1)
 timestamp = all_data[:,1]
 temp = all_data[:,2]
 x_accel = all_data[:,3]
