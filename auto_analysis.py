@@ -7,6 +7,10 @@ file to be analyzed and your guess of several parameters, and it should output i
 So far it only attempts to fit gyroscopic acceleration in the z-direction and linear acceleration in the x-direction
 '''
 
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+
 # TODO: add damping term for x-acceleration
 # todo: convert bit reading into quantities with proper units
 # todo: add more fits
@@ -14,9 +18,10 @@ path = input('file name (type "def" to use default): ')
 if path == 'def':
     path = 'AccelGyro Test.txt'
 
-all_data = np.genfromtxt(path, delimiter = '\t')
 # turn all the data into numpy arrays
 # there is likely a much faster way to do this but I don't care (yet)
+all_data = np.genfromtxt(path, delimiter = '\t')
+
 count = all_data[:,0]
 timestamp = all_data[:,1]
 temp = all_data[:,2]
@@ -27,10 +32,16 @@ x_gyro = all_data[:,6]
 y_gyro = all_data[:,7]
 z_gyro = all_data[:,8]
 
+'The hardest part of the fitting is the guessing.'
+'You might have to run it many times, manually adjusting these parameters every time.'
+
 # parameter guesses
-theta_initial = np.radians(float(input('initial angle guess (deg): ')))
+THETA_0 = np.radians(float(input('initial angle guess (deg): ')))
 k_guess = float(input('k-factor guess (for linear damping): '))
 frequency = float(input('guess angular frequency: '))
+
+# constants:
+g = 9.80
 
 # define functions designed for scipy's curve fit that can guess omega
 
@@ -43,7 +54,7 @@ def theta_accel(t, omega, k_factor):
     return -THETA_0 * omega**2 * np.cos(omega*t) * np.exp(-k_factor * t) + np.average(z_gyro) # add mean for better fit
 
 # this is where the actual fitting begins
-parameters0 = [frequency, theta_initial]
+parameters0 = [frequency, THETA_0]
 parameters1 = [frequency, k_guess]
 
 # popt is the list of optimal parameters, as determined by curve_fit
@@ -66,8 +77,13 @@ ax[1].legend()
 ax[1].set_xlabel('Timestamp (sec)')
 ax[1].set_ylabel('Gyroscopic Acceleration (bits)')
 
+
+'''Keep re-running with changed parameters until the fit no longer looks like trash.
+Our ultimate goal is to find $\omega$, which we find like so:'''
+
 # omega found from fitting the x-acceleration, with its std dev as uncertainty:
-print('omega guess from x-acceleration fit: ', popt0[0], '+/-', pcov0[0][0]**(1/2))
+print(popt0[0], '+/-', pcov0[0][0]**(1/2))
 
 #omega found from fitting the angular acceleration, with its std dev as uncrtainty:
-print('omega guess from z-gyro fit: ', popt1[0], '+/-', pcov1[0][0]**(1/2))
+print(popt1[0], '+/-', pcov1[0][0]**(1/2))
+plt.show()
