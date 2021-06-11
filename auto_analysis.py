@@ -12,6 +12,9 @@ path = input('file name: ')
 names = 'count, timestamp, x_accel, y_accel, z_accel, x_gyro, y_gyro, z_gyro'
 all_data = np.genfromtxt(path, names = names, skip_footer = 1)
 
+# constants
+g_m_s2 = 9.80152 # from https://www.ngs.noaa.gov/cgi-bin/grav_pdx.prl using my local coordinates and altitude
+
 # this calibration factor came from the 6/8 calibration of device taped to wall,
 # where I took one reading with the x-axis facing up and one
 # with the z-axis facing down
