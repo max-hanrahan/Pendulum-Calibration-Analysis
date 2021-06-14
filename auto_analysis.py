@@ -51,7 +51,7 @@ ax[0].plot(timestamp, x_accel, c = 'dodgerblue', label = 'x-accel data')
 ax[0].plot(timestamp, accel_fit, c= 'orangered', label = 'fit')
 ax[0].legend()
 ax[0].set_xlabel('Timestamp (sec)')
-ax[0].set_ylabel('Acceleration (m$/s^{2}$)')
+ax[0].set_ylabel("Acceleration (g\'s)")
 
 ax[1].plot(timestamp, z_gyro_bits, c = 'dodgerblue', label = 'ang. accel data')
 ax[1].plot(timestamp, rad_accel_fit, c= 'orangered', label = 'fit')
@@ -62,7 +62,7 @@ ax[1].set_ylabel('Gyroscopic Acceleration (bits)')
 '''
 --------------------------------------------------------------------------------
 The rest of this script prints the fitting parameters and some calculations.
-Comment it all out except for plt.show() if you don't care about numbers.
+Comment it all out except for plt.show() if you don't want it to print figures.
 --------------------------------------------------------------------------------
 '''
 # print and guess the fit parameters:
@@ -87,7 +87,7 @@ max_gz_bits = popt1[1]*np.sqrt(popt1[2]**2+popt1[3]**2)
 z_sensitivity = np.degrees(gz_max_rad_s)/ (max_gz_bits)
 datasheet_sensitivity = .004375
 
-print('L: ', L, 'm')
+print('\nL: ', L, 'm')
 print('Max Gz:', max_gz_bits, 'bits')
 print('Ax min:', Axmin)
 print('theta0:', theta0, 'rad,', np.degrees(theta0), 'deg')
