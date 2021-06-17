@@ -80,10 +80,9 @@ for i in range(len(titles2)):
 # this cell is the back-of-envelope calculations Dr. Gaitan showed in our teams meeting 6/7
 L = g_m_s2/popt1[1]**2
 max_gz_bits = popt1[1]*np.sqrt(popt1[2]**2+popt1[3]**2)
-Axmin = min(x_accel)*x_sensitivity
-theta0 = np.cos(Axmin/x_sensitivity)
+Axmin = min(abs(all_data['x_accel'])) # min x acceleration in bits
+theta0 = np.arccos((Axmin)/x_sensitivity) # effective starting angle
 gz_max_rad_s = theta0*popt1[1]
-max_gz_bits = popt1[1]*np.sqrt(popt1[2]**2+popt1[3]**2)
 z_sensitivity = np.degrees(gz_max_rad_s)/ (max_gz_bits)
 datasheet_sensitivity = .004375
 
