@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 plt.style.use('ggplot')
 
-path_to_csv = input("What do you want to name the csv? (just don't type .csv)") + '.csv'
+path_to_csv = input("What do you want to name the csv? (just don't type .csv): ") + '.csv'
 
-plot = input("Show plots? Type y/n:")
+plot = input("Show plots? Type y for yes: ")
 
 # write the headers exactly once
 with open(path_to_csv, 'w') as file_object:
@@ -22,8 +22,8 @@ with open(path_to_csv, 'w') as file_object:
 
 for i in range(16):
     # sorry, I know machine dependencies are bad. todo: fix this someday
-    path_up = r"C:\Users\mhanr\Desktop\NIST\Data\6-25\Cu"+ str(i+1) + '.txt'
-    path_down = r"C:\Users\mhanr\Desktop\NIST\Data\6-25\Cd"+ str(i+1) + '.txt'
+    path_up = r"C:\Users\mhanr\Desktop\NIST\Data\6-27\U"+ str(i+1) + '.txt'
+    path_down = r"C:\Users\mhanr\Desktop\NIST\Data\6-27\D"+ str(i+1) + '.txt'
 
     # read in the data
     names = 'count, timestamp, temp, x_accel, y_accel, z_accel, x_gyro, y_gyro, z_gyro'
@@ -50,7 +50,7 @@ for i in range(16):
     x_sensitivity = (np.average(x_up_accel_bits) - np.average(x_down_accel_bits))/2
     x_offset = (np.average(x_down_accel_bits) + np.average(x_up_accel_bits))/2
     M_S_2_PER_BIT = g/x_sensitivity
-    print(M_S_2_PER_BIT)
+    print('Run ' + str(i+1) + ":")
 
     # for linear acceleration, we can convert the bits to m/s^2
     x_accel_up = x_up_accel_bits * M_S_2_PER_BIT
@@ -66,6 +66,7 @@ for i in range(16):
     x_sigma = np.sqrt((np.std(x_up_accel_bits) / 2)**2 + (np.std(x_down_accel_bits) / 2)**2) # two stdevs added in quadrature
     print('x uncert (k = 1):', x_sigma, ',' ,'{:.2g}'.format(x_sigma / x_sensitivity*100), '%', 'fractional')
     print()
+    # could put a time.sleep here
     temp_up = np.average(all_data_up['temp'])
     temp_down = np.average(all_data_down['temp'])
     temp_avg = (temp_up + temp_down) / 2.
@@ -111,29 +112,33 @@ data = np.genfromtxt(path_to_csv, skip_header = 1, names = names, delimiter = ',
 import os
 cwd = os.getcwd()
 print('The data are now in', str(path_to_csv), 'in', str(cwd))
-plot = input('Show more plots? (y/n):')
+plot = input('Show more plots? (y for yes): ')
+
+# print summary statistics regardless
+avg_sense = np.average(data['Sensitivity'])
+std_sense = np.std(data['Sensitivity'])
+avg_off = np.average(data['Offset'])
+std_off = np.std(data['Offset'])
+
+print('Mean sensitivity:', avg_sense)
+print('Stdev of sensitivity:', std_sense)
+print('Mean offset:', avg_off)
+print('Std of offset:', std_off)
+
 if plot == 'y':
-    datalist = data['Sensitivity']
-    x = np.arange(1, len(datalist)+ 1)
-    upper_tolerance = [np.asarray(np.average(datalist)) *1.015]*(len(datalist))
-    lower_tolerance = [np.asarray(np.average(datalist)) * (1-.015)]*(len(datalist))  # let the computer do math
-
+    x = np.arange(1, len(data)+ 1)
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-    
-    ax1.plot(x, upper_tolerance, linestyle = 'dashed', label = 'upper tolerance')
-    ax1.plot(x, lower_tolerance, linestyle = 'dashed', label = 'lower tolerance')
-    ax1.plot(x, datalist, 'bo', label = 'observed sensitivity')
-    ax1.plot(x, [np.average(datalist)]*(len(datalist)), '--', )
-    ax1.set(ylabel = 'Sensitivity (dps/lsb)', title = 'Sensitivity vs Time')
-    ax1.legend()
 
-    ax2.errorbar(x, data['Sensitivity'], yerr = np.std(data['Sensitivity'])/np.sqrt(len(data)),
+    ax1.errorbar(x, data['Sensitivity']-avg_sense, yerr = (data['Sigma']/(len(data))),
                  fmt = 'bo', capsize = 4,)
-    ax2.set(ylabel = 'Sensitivity (bits/g)', title = 'Sensitivity')
+    ax1.set(ylabel = 'Sensitivity (bits)', title = 'Sensitivity (Readings - Mean)')
 
-    ax3.errorbar(x, data['Offset'], yerr = np.std(data['Offset'])/np.sqrt(len(data)),
+    ax2.plot(data['Temperature'], data['Sensitivity'], 'bo')
+    ax2.set(ylabel = 'Sensitivity (bits)', title = 'Sensitivity vs Temperature')
+
+    ax3.errorbar(x, data['Offset']-avg_off, yerr = data['Sigma']/(len(data)),
                  fmt = 'ro', capsize = 4, )
-    ax3.set(ylabel = 'Offset (bits)', title = 'Offset')
+    ax3.set(xlabel = 'Reading Number', ylabel = 'Offset (bits)', title = 'Offset (Readings - Mean)')
 
     # plot offset consistency against temp
     ax4.plot(data['Temperature'], data['Offset'], 'o')
