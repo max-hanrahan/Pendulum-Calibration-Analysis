@@ -9,25 +9,52 @@ a guess for the next fit. I find this helps improve the returned optimal params.
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+import sympy as sp
 plt.style.use('ggplot')
 
 names = 'count, timestamp, temp, x_accel, y_accel, z_accel, x_gyro, y_gyro, z_gyro'
 
-AX_OFFSET = 259.77 # comes from my 7-13 cube offset calculation
+AX_OFFSET = 252.42 # comes from my 7-14 cube offset calculation
 GLOC = 9.80258 # local acceleration of gravity from https://www.ngs.noaa.gov/cgi-bin/grav_pdx.prl
 dGloc = 0.00002 # if I ever need it
 
 datalist = [] # initialize an empty list of z-sensitivites to print at the end
 max_rot_list = [] # similarly, initialize a list of maximum rotational velocities
+sense_err_list = [] # list of eror bars on the sensitivties
 
 plot = input('Show plots? Type y for yes: ')
+# i wonder if this is actually a better way to calculate it:
 
-for i in range(10):
+# the fitting equations for the data. Why define them more than once?
+def accel(x, g, k, d, e, f):
+    return g * np.exp(-k*x) * np.cos( (d*np.cos(w*x)+e*np.sin(w*x))) + f
+def gyro(t, k, w, a, b, c):
+    return np.exp(-k*t) * ( w * ( a * np.cos(w*t) + b * np.sin(w*t) ) ) + c
+
+def S(z,y,x,w,v,u,t):
+    # note that this result is in degrees per second per bit.
+    return (1/np.sqrt(z**2+y**2)* np.arccos((u*np.cos(np.sqrt(x**2+w**2))+v) / (t))) * 180/np.pi
+
+# a list of symbols to represent the independent variables
+symbols = a_s,bs,ds,es,fs,gs,As = sp.symbols('a b d e f g A')
+# the equation for sensitivty that uses our indep variable symbols:
+S_sym = (1/((a_s**2 + bs**2))**(0.5)* sp.acos((gs*sp.cos((ds**2 + es**2)**(0.5)) + fs) / (As))) * 180/np.pi
+
+def grad_func(a,b,d,e,f,g,A):
+    # returns the matrix of numerical partial deriviatves (i.e., the gradient)
+    sym_partial_derivs = [sp.diff(S_sym, var) for var in symbols]
+    grad = []
+    for func in sym_partial_derivs:
+        func = sp.lambdify(symbols, func, 'numpy')
+        grad.append(func(a,b,d,e,f,g,A))
+    return grad
+
+for i in range(6):
     # everything below this indent analyzes one file.
     # as such, path_swing and path_stat need to change based on where the data are
     print('\nTrial', str(i+1)+':\n')
-    path_swing = r"C:\Users\mhanr\Desktop\NIST\Data\7-13\W" + str(i+1) + '.txt'
-    path_stat = r"C:\Users\mhanr\Desktop\NIST\Data\7-13\T" + str(i+1) + '.txt'
+    path_swing = r"C:\Users\mhanr\Desktop\NIST\Data\7-14\W" + str(i+1) + '.txt'
+    path_stat = r"C:\Users\mhanr\Desktop\NIST\Data\7-14\T" + str(i+1) + '.txt'
 
     swing_data = np.genfromtxt(path_swing, names = names, skip_footer = 1)
     stat_data = np.genfromtxt(path_stat, names = names, skip_footer = 1)
@@ -76,12 +103,6 @@ for i in range(10):
 
     swing_ax_resids = swing_ax_o - np.average(swing_ax_o)
     swing_gz_resids = swing_gz_o - np.average(swing_gz_o)
-
-    # this is where the fitting begins
-    def accel(x, g, k, d, e, f):
-        return g * np.exp(-k*x) * np.cos( (d*np.cos(w*x)+e*np.sin(w*x))) + f
-    def gyro(t, k, w, a, b, c):
-        return np.exp(-k*t) * ( w * ( a * np.cos(w*t) + b * np.sin(w*t) ) ) + c
 
     # this is where the actual fitting begins
     accel_guesses =  [10696.02,  0.00161577, -0.1102, 0.9386, 8719.41] # you will likely need to change this!
@@ -144,9 +165,19 @@ for i in range(10):
     print(Sensitivity*1000, 'mdps/bit')
     print('difference: ', "{:.7%}".format(difference))
     print('L = g0/w2 =', GLOC / w**2, 'm')
+    gradient = grad_func(a,b,d,e,f,g,A) # our gradient
+    mysum = 0
+    for i in range(len(gradient)):
+        mysum += (gradient[i] * uncerts[i])**2
+    print('\nOld Sensitivity:', Sensitivity)
+    print('New Sensitivity:', S(a,b,d,e,f,g,A)*1000, 'mdps/bit')
+    print('differences:', Sensitivity - S(a,b,d,e,f,g,A)*1000)
+    print('Uncert:', np.sqrt(mysum)*1000, 'mdps/bit')
+
     plt.show()
     datalist.append(Sensitivity)
     max_rot_list.append(Gm)
+    sense_err_list.append(np.sqrt(mysum))
 
 # print the data out at the end to copy/paste for analysis
 for i in datalist:
@@ -169,7 +200,8 @@ if plot=='y':
 
         plt.plot(x, upper_tolerance, linestyle = 'dashed', label = 'upper tolerance')
         plt.plot(x, lower_tolerance, linestyle = 'dashed', label = 'lower tolerance')
-        plt.plot(x, datalist - np.average(datalist), 'bo', label = 'observed sensitivity')
+        plt.errorbar(x, datalist - np.average(datalist), yerr = sense_err_list,
+            fmt = 'bo', label = 'observed sensitivity', capsize = 2)
         plt.plot(x, [0]*(len(x)), '--', )
         plt.title('Residual plot')
         plt.ylabel('Sensitivity (dps/lsb)')
@@ -184,7 +216,8 @@ if plot=='y':
         plt.plot(x, expected, linestyle = 'dashed', label = 'datasheet sensitivity')
         plt.plot(x, upper_tolerance, linestyle = 'dashed', label = 'upper tolerance')
         plt.plot(x, lower_tolerance, linestyle = 'dashed', label = 'lower tolerance')
-        plt.plot(x, datalist, 'bo', label = 'observed sensitivity')
+        plt.errorbar(x, datalist, yerr = sense_err_list, fmt = 'bo',
+            label = 'observed sensitivity', capsize = 2)
         plt.plot(x, [np.average(datalist)]*(len(x)), '--', )
         plt.title('Plot')
         plt.ylabel('Sensitivity (dps/lsb)')
@@ -193,29 +226,3 @@ if plot=='y':
         # todo: figure out stdev and plot where nums would be expected vs where they are
         # could be instructive of whether they have systematic error or noise
 print(f'mean value is {(np.average(datalist) - datasht_sense)* 100/ datasht_sense :.4g}% off from datasheet sensitivty')
-
-# uncertainty analysis: wip
-# import sympy as sp # a python-based symbolic manipulator
-# # a list of symbols to represent the independent variables
-# symbols = a_s,bs,ds,es,fs,gs,As = sp.symbols('a b d e f g A')
-# # the equation for sensitivty that uses our indep variable symbols:
-# S_sym = 1/((a_s**2 + bs**2))**(0.5)* sp.acos((gs*sp.cos((ds**2 + es**2)**(0.5)) + fs) / (As))
-#
-# def grad_func(a,b,d,e,f,g,A):
-#     # returns the matrix of numerical partial deriviatves (i.e., the gradient)
-#     sym_partial_derivs = [sp.diff(S_sym, var) for var in symbols]
-#     grad = []
-#     for func in sym_partial_derivs:
-#         func = sp.lambdify(symbols, func, 'numpy')
-#         grad.append(func(a,b,d,e,f,g,A))
-#     return grad
-#
-# gradient = grad_func(a,b,d,e,f,g,A) # our gradient
-# mysum = 0
-# for i in range(len(gradient)):
-#     mysum += (gradient[i] * uncerts[i])**2
-#
-# # i wonder if this is actually a better way to calculate it:
-# def S(z,y,x,w,v,u,t):
-#     # note that this result is in radians per second per bit.
-#     return 1/np.sqrt(z**2+y**2)* np.arccos((u*np.cos(np.sqrt(x**2+w**2))+v) / (t))
