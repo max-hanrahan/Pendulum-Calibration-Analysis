@@ -1,9 +1,13 @@
 '''
-Analyze a lot of files for the calibration of this accelerometer,
-provided the data are formatted in a certain specific way.
+--------------------------------------------------------------------------------
+Analyze the readings from the accelerometer/gyroscope to fit gyroscopic
+acceleration in the z-direction and linear acceleration in the x-direction.
+Loops through ten similarly-named files.
 
-Uses the optimal parameters found in the last fit as
-a guess for the next fit. I find this helps improve the returned optimal params.
+path_stat points to a file of the device readings while the pendulum is
+stationary, and path_swing points to a file of the device readings while the
+pendulum is moving. GLOC is your local gravitational acceleration.
+--------------------------------------------------------------------------------
 '''
 
 import numpy as np
@@ -49,12 +53,12 @@ def grad_func(a,b,d,e,f,g,A):
         grad.append(func(a,b,d,e,f,g,A))
     return grad
 
-for i in range(6):
+for i in range(10):
     # everything below this indent analyzes one file.
     # as such, path_swing and path_stat need to change based on where the data are
     print('\nTrial', str(i+1)+':\n')
-    path_swing = r"C:\Users\mhanr\Desktop\NIST\Data\7-14\W" + str(i+1) + '.txt'
-    path_stat = r"C:\Users\mhanr\Desktop\NIST\Data\7-14\T" + str(i+1) + '.txt'
+    path_swing = r"C:\Users\mhanr\Desktop\NIST\Data\7-15\W" + str(i+1) + '.txt'
+    path_stat = r"C:\Users\mhanr\Desktop\NIST\Data\7-15\T" + str(i+1) + '.txt'
 
     swing_data = np.genfromtxt(path_swing, names = names, skip_footer = 1)
     stat_data = np.genfromtxt(path_stat, names = names, skip_footer = 1)
@@ -108,9 +112,11 @@ for i in range(6):
     accel_guesses =  [10696.02,  0.00161577, -0.1102, 0.9386, 8719.41] # you will likely need to change this!
     gyro_guesses = [0.007126082, 5.148, 5753.85, -271.69, 16.24] # and this!
 
-    # sometimes the above guesses really mess up the first one, but they also often help
-    # if the first default guess hurts, you can just make an exception if i==0
+    '''sometimes the above guesses really mess up the first one, but they also often help
+    if the first default guess hurts, you can just make an exception if i==0.
 
+    the below uses the optimal parameters found in the last fit as
+    a guess for the next fit. I find this helps improve the returned optimal params.'''
     popt1, pcov1 = curve_fit(gyro, swing_time, swing_gz_o, gyro_guesses)
     w = popt1[1] # needed for the next fit!
     popt0, pcov0 = curve_fit(accel, swing_time, swing_ax_o, accel_guesses)
@@ -131,18 +137,18 @@ for i in range(6):
     gyro_fit = gyro(swing_time, *popt1)
 
     if plot == 'y':
-        fig, ax = plt.subplots(1, 2)
-        ax[0].plot(swing_time, swing_ax_o, 'ro', label = 'x-accel data', markersize = 2)
-        ax[0].plot(swing_time, accel_fit, 'k--', label = 'fit')
+        fig, ax = plt.subplots(2, 1)
+        ax[0].plot(swing_time, swing_ax_o/ 16359.14, 'ro', label = 'x-accel data', markersize = 2)
+        ax[0].plot(swing_time, accel_fit/ 16359.14, 'k--', label = 'fit')
         ax[0].legend()
-        ax[0].set_xlabel('Timestamp (sec)')
-        ax[0].set_ylabel("Acceleration (bits)")
+        # ax[0].set_xlabel('Timestamp (sec)')
+        ax[0].set_ylabel("Acceleration (g's)", size = 12)
 
-        ax[1].plot(swing_time, swing_gz_o, 'go', label = 'ang. accel data', markersize = 2)
-        ax[1].plot(swing_time, gyro_fit, 'k--', label = 'fit')
+        ax[1].plot(swing_time, swing_gz_o/16359.14, 'go', label = 'z rotational data', markersize = 2)
+        ax[1].plot(swing_time, gyro_fit/16359.14, 'k--', label = 'fit')
         ax[1].legend()
-        ax[1].set_xlabel('Timestamp (sec)')
-        ax[1].set_ylabel('Gyroscopic Acceleration (bits)')
+        ax[1].set_xlabel('Timestamp (sec)', size = 12)
+        ax[1].set_ylabel("Gyroscopic Acceleration (g's)", size = 12)
         plt.show()
 
     # here I print summary stats that gaitan does
@@ -169,9 +175,7 @@ for i in range(6):
     mysum = 0
     for i in range(len(gradient)):
         mysum += (gradient[i] * uncerts[i])**2
-    print('\nOld Sensitivity:', Sensitivity)
-    print('New Sensitivity:', S(a,b,d,e,f,g,A)*1000, 'mdps/bit')
-    print('differences:', Sensitivity - S(a,b,d,e,f,g,A)*1000)
+    print('\nSensitivity:', S(a,b,d,e,f,g,A)*1000, 'mdps/bit')
     print('Uncert:', np.sqrt(mysum)*1000, 'mdps/bit')
 
     plt.show()
@@ -197,14 +201,16 @@ if plot=='y':
     if resids == 'y':
         upper_tolerance = [np.asarray(np.average(datalist)) *.015]*(len(datalist))
         lower_tolerance = [np.asarray(np.average(datalist)) * (-.015)]*(len(datalist))
+        label_str = "avg sensitivty: {:0.2g} mdps/bit".format(np.average(datalist)*1000)
 
-        plt.plot(x, upper_tolerance, linestyle = 'dashed', label = 'upper tolerance')
-        plt.plot(x, lower_tolerance, linestyle = 'dashed', label = 'lower tolerance')
+        plt.plot(x, upper_tolerance, linestyle = 'dashed', label = '1.5% above avg. sense')
+        plt.plot(x, lower_tolerance, linestyle = 'dashed', label = '1.5% below avg. sense')
         plt.errorbar(x, datalist - np.average(datalist), yerr = sense_err_list,
             fmt = 'bo', label = 'observed sensitivity', capsize = 2)
-        plt.plot(x, [0]*(len(x)), '--', )
-        plt.title('Residual plot')
-        plt.ylabel('Sensitivity (dps/lsb)')
+        plt.plot(x, [0]*(len(x)), '--', label = label_str)
+        plt.title('Z rotational sensitivites')
+        plt.ylabel('Sensitivity (dps/lsb)', size = 12)
+        plt.xlabel('Trial #', size = 12)
         plt.legend()
         plt.show()
 
@@ -214,13 +220,14 @@ if plot=='y':
         lower_tolerance = [np.asarray(np.average(datalist)) * (1-.015)]*(len(datalist))  # let the computer do math
 
         plt.plot(x, expected, linestyle = 'dashed', label = 'datasheet sensitivity')
-        plt.plot(x, upper_tolerance, linestyle = 'dashed', label = 'upper tolerance')
-        plt.plot(x, lower_tolerance, linestyle = 'dashed', label = 'lower tolerance')
+        plt.plot(x, upper_tolerance, linestyle = 'dashed', label = '1.5% above avg. sense')
+        plt.plot(x, lower_tolerance, linestyle = 'dashed', label = '1.5% below avg. sense')
         plt.errorbar(x, datalist, yerr = sense_err_list, fmt = 'bo',
             label = 'observed sensitivity', capsize = 2)
-        plt.plot(x, [np.average(datalist)]*(len(x)), '--', )
-        plt.title('Plot')
-        plt.ylabel('Sensitivity (dps/lsb)')
+        plt.plot(x, [np.average(datalist)]*(len(x)), '--')
+        plt.title('Comparison to Datasheet Sensitivity')
+        plt.ylabel('Sensitivity (dps/lsb)', size = 12)
+        plt.xlabel('Trial #', size = 12)
         plt.legend()
         plt.show()
         # todo: figure out stdev and plot where nums would be expected vs where they are
